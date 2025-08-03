@@ -9,6 +9,8 @@ Automatically discover techno events in Amsterdam by scraping venue websites wee
 - Sends weekly email summaries
 - Runs automatically via GitHub Actions
 - Supports manual triggers
+- Comprehensive test coverage with pytest
+- CI/CD pipeline with automated testing
 
 ## Setup
 
@@ -61,6 +63,30 @@ python main.py --email your@email.com --output email
 # Look ahead 14 days
 python main.py --days 14
 ```
+
+## Testing
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage report
+pytest --cov=. --cov-report=term-missing
+
+# Run specific test file
+pytest tests/test_models.py
+
+# Run tests in watch mode
+pytest-watch
+```
+
+The project includes comprehensive test coverage for:
+- Event model and deduplication logic
+- Base scraper functionality
+- Individual venue scrapers
+- Date parsing (including Dutch formats)
+- Email formatting and sending
+- Main orchestrator integration
 
 ## Adding New Venues
 
