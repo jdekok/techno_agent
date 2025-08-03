@@ -1,0 +1,114 @@
+name: Weekly Techno Events Scraper
+
+on:
+  schedule:
+    # Run every Monday at 10 AM UTC (12 PM Amsterdam time)
+    - cron: '0 10 * * 1'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      email_recipient:
+        description: 'Email address to send results to'
+        required: false
+        type: string
+      days_ahead:
+        description: 'Number of days to look ahead'
+        required: false
+        default: '7'
+        type: string
+  
+  # Allow external trigger via webhook
+  repository_dispatch:
+    types: [scrape-events]
+
+jobs:
+  scrape-events:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Run scraper
+      env:
+        # SMTP configuration from GitHub secrets
+        SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+        SMTP_PORT: ${{ secrets.SMTP_PORT }}
+        SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+        SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        SMTP_FROM_EMAIL: ${{ secrets.SMTP_FROM_EMAIL }}
+      run: |
+        # Determine email recipient
+        EMAIL="${{ github.event.inputs.email_recipient || secrets.DEFAULT_EMAIL_RECIPIENT }}"
+        DAYS="${{ github.event.inputs.days_ahead || '7' }}"
+        
+        # Run scraper with appropriate output
+        if [ -n "$EMAIL" ] && [ -n "$SMTP_USERNAME" ]; then
+          echo "Running scraper with email output to: $EMAIL"
+          python main.py --email "$EMAIL" --days "$DAYS" --output both
+        else
+          echo "Running scraper with JSON output only"
+          python main.py --days "$DAYS" --output json
+        fi
+        
+    - name: Upload event data
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: techno-events-${{ github.run_number }}
+        path: events.json
+        retention-days: 30
+        
+    - name: Create issue on failure
+      if: failure()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const date = new Date().toISOString().split('T')[0];
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `Techno Event Scraper Failed - ${date}`,
+            body: `The weekly techno event scraper failed to run successfully.
+            
+            **Workflow Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
+            **Date:** ${date}
+            
+            Please check the logs for more details.`,
+            labels: ['bug', 'automation']
+          })
+          
+    - name: Summary
+      if: always()
+      run: |
+        if [ -f events.json ]; then
+          echo "## 🎵 Techno Events Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Successfully scraped events. Check the artifacts for full details." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          # Show event count
+          EVENT_COUNT=$(python -c "import json; print(len(json.load(open('events.json'))))")
+          echo "**Total events found:** $EVENT_COUNT" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "## ❌ Scraping Failed" >> $GITHUB_STEP_SUMMARY
+          echo "No events file was generated. Check the logs for errors." >> $GITHUB_STEP_SUMMARY
+        fi
