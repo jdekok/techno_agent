@@ -106,3 +106,10 @@ The project includes comprehensive test coverage for:
 - Instagram scraping for pop-up events
 - Telegram channel integration
 - Event categorization by subgenre
+
+## TODO
+
+- [ ] **Firecrawl MCP Integration**: Integrate Firecrawl MCP with Claude Code for enhanced web scraping capabilities
+  - Use Firecrawl's intelligent content extraction for better event data parsing
+  - Leverage Claude Code's automation for processing scraped content
+  - Could improve reliability and reduce maintenance overhead for venue-specific scrapers
